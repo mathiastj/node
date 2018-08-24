@@ -445,12 +445,14 @@ LoadElimination::AbstractMaps const* LoadElimination::AbstractMaps::Extend(
 }
 
 void LoadElimination::AbstractMaps::Print() const {
+  AllowHandleDereference allow_handle_dereference;
+  StdoutStream os;
   for (auto pair : info_for_node_) {
-    PrintF("    #%d:%s\n", pair.first->id(), pair.first->op()->mnemonic());
-    OFStream os(stdout);
+    os << "    #" << pair.first->id() << ":" << pair.first->op()->mnemonic()
+       << std::endl;
     ZoneHandleSet<Map> const& maps = pair.second;
     for (size_t i = 0; i < maps.size(); ++i) {
-      os << "     - " << Brief(*maps[i]) << "\n";
+      os << "     - " << Brief(*maps[i]) << std::endl;
     }
   }
 }
@@ -675,6 +677,12 @@ Node* LoadElimination::AbstractState::LookupField(Node* object,
 }
 
 bool LoadElimination::AliasStateInfo::MayAlias(Node* other) const {
+  // If {object} is being initialized right here (indicated by {object} being
+  // an Allocate node instead of a FinishRegion node), we know that {other}
+  // can only alias with {object} if they refer to exactly the same node.
+  if (object_->opcode() == IrOpcode::kAllocate) {
+    return object_ == other;
+  }
   // Decide aliasing based on the node kinds.
   if (!compiler::MayAlias(object_, other)) {
     return false;
@@ -1367,6 +1375,8 @@ CommonOperatorBuilder* LoadElimination::common() const {
 }
 
 Graph* LoadElimination::graph() const { return jsgraph()->graph(); }
+
+Isolate* LoadElimination::isolate() const { return jsgraph()->isolate(); }
 
 Factory* LoadElimination::factory() const { return jsgraph()->factory(); }
 
